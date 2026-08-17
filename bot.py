@@ -1,3 +1,15 @@
+import sys
+import traceback
+
+# Отлавливаем все ошибки
+def handle_exception(exc_type, exc_value, exc_traceback):
+    print("=== ОШИБКА ПРИ ЗАПУСКЕ ===")
+    traceback.print_exception(exc_type, exc_value, exc_traceback)
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+sys.excepthook = handle_exception
+
 import asyncio
 import logging
 from datetime import datetime, timedelta
@@ -545,20 +557,4 @@ async def send_newsletter(message: types.Message, state: FSMContext):
 # === СТАТИСТИКА ПОЛЬЗОВАТЕЛЕЙ ===
 @dp.callback_query(lambda c: c.data == "users_count")
 async def users_count(callback: types.CallbackQuery):
-    if callback.from_user.id != ADMIN_ID:
-        await callback.answer("⛔ Доступ запрещён!", show_alert=True)
-        return
-    
-    count = get_users_count()
-    last_newsletter = get_last_newsletter()
-    
-    text = f"👥 **Статистика пользователей**\n\n"
-    text += f"📊 Всего: {count}\n"
-    if last_newsletter:
-        last_date = datetime.fromisoformat(last_newsletter).strftime("%d.%m.%Y в %H:%M")
-        text += f"📨 Последняя рассылка: {last_date}"
-    else:
-        text += "📨 Рассылок ещё не было"
-    
-    await callback.message.edit_text(text, reply_markup=admin_keyboard(), parse_mode="Markdown")
-    await callback.answer()
+    if
