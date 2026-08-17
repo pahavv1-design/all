@@ -79,10 +79,8 @@ async def start(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.username or "без username"
     
-    # Добавляем пользователя
     add_user(user_id, username)
     
-    # Проверяем подписку
     channel = get_required_channel()
     if channel:
         try:
@@ -90,7 +88,6 @@ async def start(message: types.Message):
             if member.status in ['member', 'administrator', 'creator']:
                 update_subscription(user_id, 1)
             else:
-                # Создаём кнопку подписки
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="📢 Подписаться", url=f"https://t.me/{channel.replace('@', '')}")],
                     [InlineKeyboardButton(text="✅ Проверить подписку", callback_data="check_sub_user")]
@@ -103,7 +100,6 @@ async def start(message: types.Message):
         except:
             pass
     
-    # Главное меню
     await message.answer(
         f"👋 Привет, {message.from_user.first_name}!\n"
         f"Я помогу тебе управлять конкурсами.\n\n"
@@ -111,7 +107,7 @@ async def start(message: types.Message):
         reply_markup=main_keyboard(user_id)
     )
 
-# === ПРОВЕРКА ПОДПИСКИ (ДЛЯ ПОЛЬЗОВАТЕЛЯ) ===
+# === ПРОВЕРКА ПОДПИСКИ ===
 @dp.callback_query(lambda c: c.data == "check_sub_user")
 async def check_sub_user(callback: types.CallbackQuery):
     user_id = callback.from_user.id
@@ -138,7 +134,6 @@ async def check_sub_user(callback: types.CallbackQuery):
     except:
         await callback.answer("⚠️ Ошибка проверки", show_alert=True)
 
-# === ПРОВЕРКА ПОДПИСКИ (ДЛЯ АДМИНА) ===
 @dp.callback_query(lambda c: c.data == "check_sub_admin")
 async def check_sub_admin(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
@@ -168,7 +163,6 @@ async def add_contest_link(message: types.Message, state: FSMContext):
     link = message.text.strip()
     user_id = message.from_user.id
     
-    # Проверяем дубликат
     duplicate = check_duplicate(user_id, link)
     
     if duplicate:
@@ -176,7 +170,6 @@ async def add_contest_link(message: types.Message, state: FSMContext):
         time_left = get_time_left(end_time)
         
         if status == 'active' and datetime.fromisoformat(end_time) > datetime.now():
-            # Активный конкурс
             await message.answer(
                 f"⚠️ Ты уже участвуешь в этом конкурсе!\n\n"
                 f"📝 Название: {title}\n"
@@ -187,7 +180,6 @@ async def add_contest_link(message: types.Message, state: FSMContext):
             await state.clear()
             return
         else:
-            # Завершённый конкурс
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="✅ Да, добавить заново", callback_data=f"re_add_{contest_id}")],
                 [InlineKeyboardButton(text="❌ Нет, отмена", callback_data="cancel_add")]
@@ -203,12 +195,10 @@ async def add_contest_link(message: types.Message, state: FSMContext):
             await state.set_state(AddContest.waiting_for_title)
             return
     
-    # Если дубликатов нет, сохраняем ссылку и продолжаем
     await state.update_data(link=link)
     await message.answer("📝 Введи название конкурса:")
     await state.set_state(AddContest.waiting_for_title)
 
-# === ОБРАБОТКА ПОВТОРНОГО ДОБАВЛЕНИЯ ===
 @dp.callback_query(lambda c: c.data.startswith("re_add_"))
 async def re_add_contest(callback: types.CallbackQuery, state: FSMContext):
     contest_id = int(callback.data.split("_")[2])
@@ -226,13 +216,11 @@ async def cancel_add(callback: types.CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-# === ПОЛУЧЕНИЕ НАЗВАНИЯ ===
 @dp.message(AddContest.waiting_for_title)
 async def add_contest_title(message: types.Message, state: FSMContext):
     data = await state.get_data()
     title = message.text.strip()
     
-    # Если это повторное добавление, удаляем старый конкурс
     if 're_add_id' in data:
         delete_contest(data['re_add_id'])
         await state.update_data(re_add_id=None)
@@ -252,13 +240,11 @@ async def add_contest_time(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     time_input = message.text.strip()
     
-    # Пробуем парсить часы
     try:
         hours = int(time_input)
         end_time = datetime.now() + timedelta(hours=hours)
         end_time_str = end_time.strftime("%Y-%m-%d %H:%M")
     except ValueError:
-        # Пробуем парсить дату
         try:
             end_time = datetime.strptime(time_input, "%Y-%m-%d %H:%M")
             if end_time < datetime.now():
@@ -273,7 +259,6 @@ async def add_contest_time(message: types.Message, state: FSMContext):
             )
             return
     
-    # Сохраняем конкурс
     add_contest(user_id, data['link'], data['title'], end_time_str)
     
     await message.answer(
@@ -305,7 +290,6 @@ async def show_active(callback: types.CallbackQuery):
         now = datetime.now()
         diff = end_time - now
         
-        # Цветовая индикация
         if diff.total_seconds() < 3600:
             emoji = "🔴"
         elif diff.total_seconds() < 86400:
@@ -313,7 +297,6 @@ async def show_active(callback: types.CallbackQuery):
         else:
             emoji = "🟢"
         
-        # Форматируем оставшееся время
         days = diff.days
         hours = diff.seconds // 3600
         minutes = (diff.seconds % 3600) // 60
@@ -333,7 +316,6 @@ async def show_active(callback: types.CallbackQuery):
         text += f"   📅 До: {end_time.strftime('%d.%m.%Y %H:%M')}\n"
         text += f"   🔗 {c[2]}\n\n"
     
-    # Добавляем кнопки действий
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔄 Обновить", callback_data="active_contests")],
         [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_main")]
@@ -468,11 +450,9 @@ async def save_channel(message: types.Message, state: FSMContext):
     
     channel = message.text.strip()
     
-    # Обработка ссылки
     if 't.me/' in channel:
         channel = '@' + channel.split('t.me/')[-1]
     
-    # Проверка существования канала
     try:
         await bot.get_chat(channel)
     except:
@@ -483,7 +463,6 @@ async def save_channel(message: types.Message, state: FSMContext):
     await message.answer(f"✅ Канал подписки изменён на {channel}")
     await state.clear()
     
-    # Возврат в админку
     await message.answer(
         "⚙️ Админ-панель:",
         reply_markup=admin_keyboard()
@@ -516,7 +495,6 @@ async def send_newsletter(message: types.Message, state: FSMContext):
     users = get_all_users()
     text = message.text
     
-    # Парсим кнопку
     button_text = None
     button_url = None
     if '|' in text and 'http' in text:
@@ -543,7 +521,7 @@ async def send_newsletter(message: types.Message, state: FSMContext):
             else:
                 await bot.send_message(user_id, text)
             sent += 1
-            await asyncio.sleep(0.05)  # Защита от бана
+            await asyncio.sleep(0.05)
         except:
             pass
     
@@ -557,4 +535,25 @@ async def send_newsletter(message: types.Message, state: FSMContext):
 # === СТАТИСТИКА ПОЛЬЗОВАТЕЛЕЙ ===
 @dp.callback_query(lambda c: c.data == "users_count")
 async def users_count(callback: types.CallbackQuery):
-    if
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("⛔ Доступ запрещён!", show_alert=True)
+        return
+    
+    count = get_users_count()
+    last_newsletter = get_last_newsletter()
+    
+    text = f"👥 **Статистика пользователей**\n\n"
+    text += f"📊 Всего: {count}\n"
+    
+    if last_newsletter:
+        last_date = datetime.fromisoformat(last_newsletter).strftime("%d.%m.%Y в %H:%M")
+        text += f"📨 Последняя рассылка: {last_date}"
+    else:
+        text += "📨 Рассылок ещё не было"
+    
+    await callback.message.edit_text(text, reply_markup=admin_keyboard(), parse_mode="Markdown")
+    await callback.answer()
+
+# === ВОЗВРАТ В ГЛАВНОЕ МЕНЮ ===
+@dp.callback_query(lambda c: c.data == "back_main")
+async def back_main(callbac
