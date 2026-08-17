@@ -554,4 +554,11 @@ async def users_count(callback: types.CallbackQuery):
     
     text = f"👥 **Статистика пользователей**\n\n"
     text += f"📊 Всего: {count}\n"
-    if last
+    if last_newsletter:
+        last_date = datetime.fromisoformat(last_newsletter).strftime("%d.%m.%Y в %H:%M")
+        text += f"📨 Последняя рассылка: {last_date}"
+    else:
+        text += "📨 Рассылок ещё не было"
+    
+    await callback.message.edit_text(text, reply_markup=admin_keyboard(), parse_mode="Markdown")
+    await callback.answer()
