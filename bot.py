@@ -44,7 +44,7 @@ def admin_keyboard():
         [InlineKeyboardButton(text="📢 Управление каналом", callback_data="manage_channel")],
         [InlineKeyboardButton(text="📨 Рассылка", callback_data="newsletter")],
         [InlineKeyboardButton(text="👥 Статистика пользователей", callback_data="users_count")],
-        [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_main")]
+        [InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="back_main")]
     ])
 
 def channel_keyboard():
@@ -53,6 +53,7 @@ def channel_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=f"📢 Текущий: {text}", callback_data="noop")],
         [InlineKeyboardButton(text="✏️ Изменить канал", callback_data="change_channel")],
+        [InlineKeyboardButton(text="🗑️ Удалить канал", callback_data="delete_channel")],
         [InlineKeyboardButton(text="✅ Проверить подписку", callback_data="check_sub_admin")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_panel")]
     ])
@@ -115,6 +116,19 @@ async def check_sub_admin(callback: types.CallbackQuery):
         return
     channel = get_required_channel()
     await callback.answer(f"✅ Канал: {channel}" if channel else "⚠️ Не установлен", show_alert=True)
+
+@dp.callback_query(lambda c: c.data == "delete_channel")
+async def delete_channel(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("⛔ Доступ запрещён!", show_alert=True)
+        return
+    
+    set_required_channel("")
+    await callback.message.edit_text(
+        "🗑️ Канал удалён! Подписка больше не обязательна.",
+        reply_markup=channel_keyboard()
+    )
+    await callback.answer("✅ Канал удалён!", show_alert=True)
 
 @dp.callback_query(lambda c: c.data == "add_contest")
 async def add_contest_start(callback: types.CallbackQuery, state: FSMContext):
