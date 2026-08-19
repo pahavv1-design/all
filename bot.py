@@ -144,7 +144,7 @@ async def add_contest_link(message: types.Message, state: FSMContext):
     duplicate = check_duplicate(user_id, link)
     if duplicate:
         contest_id, title, end_time, status = duplicate
-        if status == 'active' and datetime.fromisoformat(end_time) > datetime.now():
+        if status == 'active' and datetime.strptime(end_time, "%Y-%m-%d %H:%M") > datetime.now():
             await message.answer(f"⚠️ Ты уже участвуешь в этом конкурсе!\n📝 {title}\n⏳ Осталось: {get_time_left(end_time)}")
             await state.clear()
             return
@@ -195,10 +195,12 @@ async def add_contest_time(message: types.Message, state: FSMContext):
     
     try:
         hours = int(time_input)
-        end_time_str = (datetime.now() + timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M")
+        end_time = datetime.now() + timedelta(hours=hours)
+        end_time_str = end_time.strftime("%Y-%m-%d %H:%M")
     except:
         try:
             end_time = datetime.strptime(time_input, "%Y-%m-%d %H:%M")
+            end_time = end_time.replace(tzinfo=None)
             if end_time < datetime.now():
                 await message.answer("❌ Дата должна быть в будущем!")
                 return
@@ -223,7 +225,7 @@ async def show_active(callback: types.CallbackQuery):
     
     text = "⏳ **Активные конкурсы:**\n\n"
     for c in contests:
-        end_time = datetime.fromisoformat(c[4])
+        end_time = datetime.strptime(c[4], "%Y-%m-%d %H:%M")
         diff = end_time - datetime.now()
         
         if diff.total_seconds() < 3600:
@@ -281,7 +283,7 @@ async def show_stats(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     contests = get_all_contests(user_id)
     total = len(contests)
-    active = len([c for c in contests if c[4] == 'active' and datetime.fromisoformat(c[4]) > datetime.now()])
+    active = len([c for c in contests if c[4] == 'active' and datetime.strptime(c[4], "%Y-%m-%d %H:%M") > datetime.now()])
     participated = len([c for c in contests if c[5] == 1])
     
     text = f"📊 **Статистика:**\n\n📝 Всего: {total}\n⏳ Активных: {active}\n✅ Участвовал: {participated}"
@@ -413,7 +415,7 @@ async def send_daily_checklist():
             continue
         text = "📅 **Чек-лист на сегодня**\n\n"
         for i, c in enumerate(contests, 1):
-            text += f"{i}. **{c[3]}**\n   ⏳ До {datetime.fromisoformat(c[4]).strftime('%H:%M')}\n   🔗 {c[2]}\n\n"
+            text += f"{i}. **{c[3]}**\n   ⏳ До {datetime.strptime(c[4], '%Y-%m-%d %H:%M').strftime('%H:%M')}\n   🔗 {c[2]}\n\n"
         text += f"📌 Всего: {len(contests)} конкурсов\nУдачи! 🍀"
         try:
             await bot.send_message(user_id, text, parse_mode="Markdown")
