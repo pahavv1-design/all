@@ -106,10 +106,11 @@ def add_contest(user_id, link, title, end_time):
 def get_active_contests(user_id):
     conn = get_connection()
     cursor = conn.cursor()
+    # Используем localtime для правильного сравнения с местным временем
     cursor.execute('''
         SELECT * FROM contests 
-        WHERE user_id = ? AND status = 'active' AND datetime(end_time) > datetime('now')
-        ORDER BY datetime(end_time)
+        WHERE user_id = ? AND status = 'active' AND end_time > datetime('now', 'localtime')
+        ORDER BY end_time
     ''', (user_id,))
     contests = cursor.fetchall()
     conn.close()
@@ -122,8 +123,8 @@ def get_todays_contests(user_id):
         SELECT * FROM contests 
         WHERE user_id = ? 
         AND status = 'active'
-        AND date(end_time) = date('now')
-        ORDER BY datetime(end_time)
+        AND date(end_time) = date('now', 'localtime')
+        ORDER BY end_time
     ''', (user_id,))
     contests = cursor.fetchall()
     conn.close()
@@ -146,7 +147,11 @@ def delete_contest(contest_id):
 def get_all_contests(user_id):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM contests WHERE user_id = ? ORDER BY datetime(end_time) DESC', (user_id,))
+    cursor.execute('''
+        SELECT * FROM contests 
+        WHERE user_id = ? 
+        ORDER BY datetime(end_time) DESC
+    ''', (user_id,))
     contests = cursor.fetchall()
     conn.close()
     return contests
@@ -156,9 +161,9 @@ def get_required_channel():
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT required_channel FROM settings WHERE id = 1')
-    channel = cursor.fetchone()[0]
+    result = cursor.fetchone()
     conn.close()
-    return channel
+    return result[0] if result else ""
 
 def set_required_channel(channel):
     conn = get_connection()
@@ -171,9 +176,9 @@ def get_last_newsletter():
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT last_newsletter FROM settings WHERE id = 1')
-    last = cursor.fetchone()[0]
+    result = cursor.fetchone()
     conn.close()
-    return last
+    return result[0] if result else None
 
 def set_last_newsletter(date):
     conn = get_connection()
@@ -198,23 +203,41 @@ def check_duplicate(user_id, link):
     return contest
 
 def get_time_left(end_time_str):
-    end_time = datetime.fromisoformat(end_time_str)
-    now = datetime.now()
-    diff = end_time - now
-    
-    if diff.total_seconds() <= 0:
-        return "закончился"
-    
-    days = diff.days
-    hours = diff.seconds // 3600
-    minutes = (diff.seconds % 3600) // 60
-    
-    parts = []
-    if days > 0:
-        parts.append(f"{days}д")
-    if hours > 0:
-        parts.append(f"{hours}ч")
-    if minutes > 0:
-        parts.append(f"{minutes}м")
-    
-    return " ".join(parts) if parts else "менее минуты"
+    try:
+        end_time = datetime.strptime(end_time_str, "%Y-%m-%d %H:%M")
+        now = datetime.now()
+        diff = end_time - now
+        
+        if diff.total_seconds() <= 0:
+            return "закончился"
+        
+        days = diff.days
+        hours = diff.seconds // 3600
+        minutes = (diff.seconds % 3600) // 60
+        
+        parts = []
+        if days > 0:
+            parts.append(f"{days}д")
+        if hours > 0:
+            parts.append(f"{hours}ч")
+        if minutes > 0:
+            parts.append(f"{minutes}м")
+        
+        return " ".join(parts) if parts else "менее минуты"
+    except:
+        return "неизвестно"
+
+# === ОЧИСТКА СТАРЫХ КОНКУРСОВ (ОПЦИОНАЛЬНО) ===
+def clean_expired_contests():
+    """Удаляет конкурсы, которые закончились больше 30 дней назад"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        DELETE FROM contests 
+        WHERE status = 'active' 
+        AND datetime(end_time) < datetime('now', 'localtime', '-30 days')
+    ''')
+    deleted = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return deleted
