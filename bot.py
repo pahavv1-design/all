@@ -472,7 +472,11 @@ async def admin_panel(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
         await callback.answer("⛔ Доступ запрещён!", show_alert=True)
         return
-    await callback.message.edit_text("⚙️ **Админ-панель**", reply_markup=admin_keyboard(), parse_mode="Markdown")
+    await callback.message.edit_text(
+        "⚙️ **Админ-панель**",
+        reply_markup=admin_keyboard(),
+        parse_mode="Markdown"
+    )
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data == "manage_channel")
@@ -480,4 +484,5 @@ async def manage_channel(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
         await callback.answer("⛔ Доступ запрещён!", show_alert=True)
         return
-    await callback.message.edit_text("📢 **Управление каналом**", reply_markup=channel_keyboard(),
+    await callback.message.edit_text(
+        "📢 **Управление канал
