@@ -6,7 +6,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import BOT_TOKEN, ADMIN_ID, CHECKLIST_TIME
@@ -62,18 +62,6 @@ def channel_keyboard():
 # === КОМАНДА /START ===
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    # Устанавливаем кнопки меню внизу экрана
-    commands = [
-        BotCommand(command="menu", description="📋 Главное меню"),
-        BotCommand(command="my_contests", description="📋 Мои конкурсы"),
-        BotCommand(command="add_contest", description="➕ Добавить конкурс"),
-        BotCommand(command="active", description="⏳ Активные конкурсы"),
-        BotCommand(command="stats", description="📊 Статистика"),
-        BotCommand(command="admin", description="⚙️ Админ-панель"),
-        BotCommand(command="help", description="❓ Помощь"),
-    ]
-    await bot.set_my_commands(commands)
-    
     user_id = message.from_user.id
     username = message.from_user.username or "без username"
     
@@ -101,103 +89,6 @@ async def start(message: types.Message):
     await message.answer(
         f"👋 Привет, {message.from_user.first_name}!\nВыбери действие:",
         reply_markup=main_keyboard(user_id)
-    )
-
-# === ОБРАБОТЧИКИ КОМАНД ИЗ МЕНЮ ===
-@dp.message(Command("menu"))
-async def cmd_menu(message: types.Message):
-    await start(message)
-
-@dp.message(Command("my_contests"))
-async def cmd_my_contests(message: types.Message):
-    user_id = message.from_user.id
-    contests = get_all_contests(user_id)
-    
-    if not contests:
-        await message.answer("📭 Нет конкурсов.", reply_markup=main_keyboard(user_id))
-        return
-    
-    text = "📋 **Все конкурсы:**\n\n"
-    for c in contests[:10]:
-        status = "✅ Выполнен" if c[5] == 1 else "⏳ Активен"
-        text += f"• **{c[3]}**\n  {status} | До: {c[4]}\n  🔗 {c[2]}\n\n"
-    
-    if len(contests) > 10:
-        text += f"… и ещё {len(contests) - 10}"
-    
-    await message.answer(text, reply_markup=main_keyboard(user_id), parse_mode="Markdown")
-
-@dp.message(Command("add_contest"))
-async def cmd_add_contest(message: types.Message, state: FSMContext):
-    await message.answer("🔗 Введи ссылку на конкурс (например, t.me/durov/123):")
-    await state.set_state(AddContest.waiting_for_link)
-
-@dp.message(Command("active"))
-async def cmd_active(message: types.Message):
-    user_id = message.from_user.id
-    contests = get_active_contests(user_id)
-    
-    if not contests:
-        await message.answer("🎉 Нет активных конкурсов!", reply_markup=main_keyboard(user_id))
-        return
-    
-    text = "⏳ **Активные конкурсы:**\n\n"
-    for c in contests:
-        end_time = datetime.strptime(c[4], "%Y-%m-%d %H:%M")
-        diff = end_time - datetime.now()
-        
-        if diff.total_seconds() < 3600:
-            emoji = "🔴"
-        elif diff.total_seconds() < 86400:
-            emoji = "🟡"
-        else:
-            emoji = "🟢"
-        
-        days = diff.days
-        hours = diff.seconds // 3600
-        minutes = (diff.seconds % 3600) // 60
-        time_str = f"{days}д {hours}ч {minutes}м" if days > 0 else f"{hours}ч {minutes}м"
-        
-        text += f"{emoji} **{c[3]}**\n"
-        text += f"   ⏳ Осталось: {time_str}\n"
-        text += f"   📅 До: {end_time.strftime('%d.%m.%Y %H:%M')}\n"
-        text += f"   🔗 {c[2]}\n\n"
-    
-    await message.answer(text, reply_markup=main_keyboard(user_id), parse_mode="Markdown")
-
-@dp.message(Command("stats"))
-async def cmd_stats(message: types.Message):
-    user_id = message.from_user.id
-    contests = get_all_contests(user_id)
-    total = len(contests)
-    active = len([c for c in contests if c[4] == 'active' and datetime.strptime(c[4], "%Y-%m-%d %H:%M") > datetime.now()])
-    participated = len([c for c in contests if c[5] == 1])
-    
-    text = f"📊 **Статистика:**\n\n📝 Всего: {total}\n⏳ Активных: {active}\n✅ Участвовал: {participated}"
-    if total > 0:
-        text += f"\n📈 Процент: {round(participated/total*100, 1)}%"
-    
-    await message.answer(text, reply_markup=main_keyboard(user_id), parse_mode="Markdown")
-
-@dp.message(Command("admin"))
-async def cmd_admin(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        await message.answer("⛔ Доступ запрещён!")
-        return
-    await message.answer("⚙️ **Админ-панель**", reply_markup=admin_keyboard(), parse_mode="Markdown")
-
-@dp.message(Command("help"))
-async def cmd_help(message: types.Message):
-    await message.answer(
-        "❓ **Помощь**\n\n"
-        "📋 **Мои конкурсы** — список всех конкурсов\n"
-        "➕ **Добавить конкурс** — добавить новый конкурс\n"
-        "⏳ **Активные** — только активные конкурсы\n"
-        "📊 **Статистика** — твоя статистика\n"
-        "⚙️ **Админ-панель** — управление ботом (только для админа)\n\n"
-        "📌 Все конкурсы автоматически проверяются на дубликаты.",
-        parse_mode="Markdown",
-        reply_markup=main_keyboard(message.from_user.id)
     )
 
 # === ПРОВЕРКА ПОДПИСКИ ===
@@ -484,4 +375,81 @@ async def send_newsletter(message: types.Message, state: FSMContext):
         return
     users = get_all_users()
     if not users:
-        await message.an
+        await message.answer("❌ Нет пользователей.")
+        await state.clear()
+        return
+    await message.answer(f"📨 Начинаю рассылку для {len(users)} пользователей...")
+    sent = 0
+    for user_id in users:
+        try:
+            await bot.send_message(user_id, message.text)
+            sent += 1
+            await asyncio.sleep(0.05)
+        except:
+            pass
+    set_last_newsletter(datetime.now().isoformat())
+    await message.answer(f"✅ Отправлено: {sent} из {len(users)}")
+    await state.clear()
+
+# === СТАТИСТИКА ПОЛЬЗОВАТЕЛЕЙ ===
+@dp.callback_query(lambda c: c.data == "users_count")
+async def users_count(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("⛔ Доступ запрещён!", show_alert=True)
+        return
+    count = get_users_count()
+    last_newsletter = get_last_newsletter()
+    text = f"👥 **Пользователи:**\n\n📊 Всего: {count}\n"
+    if last_newsletter:
+        text += f"📨 Последняя рассылка: {datetime.fromisoformat(last_newsletter).strftime('%d.%m.%Y')}"
+    else:
+        text += "📨 Рассылок не было"
+    await callback.message.edit_text(text, reply_markup=admin_keyboard(), parse_mode="Markdown")
+    await callback.answer()
+
+# === ВОЗВРАТ В ГЛАВНОЕ МЕНЮ ===
+@dp.callback_query(lambda c: c.data == "back_main")
+async def back_main(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "👋 Главное меню:",
+        reply_markup=main_keyboard(callback.from_user.id)
+    )
+    await callback.answer()
+
+@dp.callback_query(lambda c: c.data == "noop")
+async def noop(callback: types.CallbackQuery):
+    await callback.answer()
+
+# === ЧЕК-ЛИСТ ДНЯ ===
+async def send_daily_checklist():
+    users = get_all_users()
+    for user_id in users:
+        contests = get_todays_contests(user_id)
+        if not contests:
+            continue
+        text = "📅 **Чек-лист на сегодня**\n\n"
+        for i, c in enumerate(contests, 1):
+            text += f"{i}. **{c[3]}**\n   ⏳ До {datetime.strptime(c[4], '%Y-%m-%d %H:%M').strftime('%H:%M')}\n   🔗 {c[2]}\n\n"
+        text += f"📌 Всего: {len(contests)} конкурсов\nУдачи! 🍀"
+        try:
+            await bot.send_message(user_id, text, parse_mode="Markdown")
+        except:
+            pass
+
+# === ПЛАНИРОВЩИК ===
+def schedule_checklist():
+    hour, minute = map(int, CHECKLIST_TIME.split(':'))
+    scheduler.add_job(send_daily_checklist, 'cron', hour=hour, minute=minute, timezone='Europe/Moscow')
+    scheduler.start()
+
+# === ЗАПУСК ===
+async def main():
+    init_db()
+    schedule_checklist()
+    print("🤖 Бот запущен!")
+    print(f"👑 Админ: {ADMIN_ID}")
+    print(f"⏰ Чек-лист в: {CHECKLIST_TIME}")
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
