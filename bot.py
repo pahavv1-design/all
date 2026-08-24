@@ -182,7 +182,7 @@ async def cmd_stats(message: types.Message):
 @dp.message(Command("admin"))
 async def cmd_admin(message: types.Message):
     if message.from_user.id != ADMIN_ID:
-        await message.answer("⛔ Доступ запрещён!", show_alert=True)
+        await message.answer("⛔ Доступ запрещён!")
         return
     await message.answer("⚙️ **Админ-панель**", reply_markup=admin_keyboard(), parse_mode="Markdown")
 
@@ -484,4 +484,4 @@ async def send_newsletter(message: types.Message, state: FSMContext):
         return
     users = get_all_users()
     if not users:
-       
+        await message.an
