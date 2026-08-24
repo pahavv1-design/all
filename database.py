@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 
 DB_NAME = "contest_bot.db"
 
@@ -221,3 +221,18 @@ def get_time_left(end_time_str):
         return " ".join(parts) if parts else "менее минуты"
     except:
         return "неизвестно"
+
+# === ОЧИСТКА СТАРЫХ КОНКУРСОВ ===
+def clean_expired_contests(days=30):
+    """Удаляет конкурсы, которые закончились больше days дней назад"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        DELETE FROM contests 
+        WHERE status = 'active' 
+        AND datetime(end_time) < datetime('now', '-' || ? || ' days')
+    ''', (days,))
+    deleted = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return deleted
