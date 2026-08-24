@@ -10,7 +10,6 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Таблица пользователей
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -20,7 +19,6 @@ def init_db():
         )
     ''')
     
-    # Таблица конкурсов
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS contests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,7 +31,6 @@ def init_db():
         )
     ''')
     
-    # Таблица настроек
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS settings (
             id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -42,7 +39,6 @@ def init_db():
         )
     ''')
     
-    # Создаём настройки по умолчанию
     cursor.execute('SELECT COUNT(*) FROM settings')
     if cursor.fetchone()[0] == 0:
         cursor.execute('INSERT INTO settings (id, required_channel) VALUES (1, "")')
@@ -106,10 +102,9 @@ def add_contest(user_id, link, title, end_time):
 def get_active_contests(user_id):
     conn = get_connection()
     cursor = conn.cursor()
-    # Используем localtime для правильного сравнения с местным временем
     cursor.execute('''
         SELECT * FROM contests 
-        WHERE user_id = ? AND status = 'active' AND end_time > datetime('now', 'localtime')
+        WHERE user_id = ? AND status = 'active' AND end_time > datetime('now')
         ORDER BY end_time
     ''', (user_id,))
     contests = cursor.fetchall()
@@ -123,7 +118,7 @@ def get_todays_contests(user_id):
         SELECT * FROM contests 
         WHERE user_id = ? 
         AND status = 'active'
-        AND date(end_time) = date('now', 'localtime')
+        AND date(end_time) = date('now')
         ORDER BY end_time
     ''', (user_id,))
     contests = cursor.fetchall()
@@ -226,18 +221,3 @@ def get_time_left(end_time_str):
         return " ".join(parts) if parts else "менее минуты"
     except:
         return "неизвестно"
-
-# === ОЧИСТКА СТАРЫХ КОНКУРСОВ (ОПЦИОНАЛЬНО) ===
-def clean_expired_contests():
-    """Удаляет конкурсы, которые закончились больше 30 дней назад"""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        DELETE FROM contests 
-        WHERE status = 'active' 
-        AND datetime(end_time) < datetime('now', 'localtime', '-30 days')
-    ''')
-    deleted = cursor.rowcount
-    conn.commit()
-    conn.close()
-    return deleted
