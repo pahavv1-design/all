@@ -44,8 +44,9 @@ def admin_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📢 Управление каналом", callback_data="manage_channel")],
         [InlineKeyboardButton(text="📨 Рассылка", callback_data="newsletter")],
-        [InlineKeyboardButton(text="👥 Статистика пользователей", callback_data="users_count")],
-        [InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="back_main")]
+        [InlineKeyboardButton(text="🗑️ Очистить старые", callback_data="clean_old")],
+        [InlineKeyboardButton(text="👥 Пользователи", callback_data="users_count")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_main")]
     ])
 
 def channel_keyboard():
@@ -55,14 +56,28 @@ def channel_keyboard():
         [InlineKeyboardButton(text=f"📢 Текущий: {text}", callback_data="noop")],
         [InlineKeyboardButton(text="✏️ Изменить канал", callback_data="change_channel")],
         [InlineKeyboardButton(text="🗑️ Удалить канал", callback_data="delete_channel")],
-        [InlineKeyboardButton(text="✅ Проверить подписку", callback_data="check_sub_admin")],
+        [InlineKeyboardButton(text="✅ Проверить", callback_data="check_sub_admin")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_panel")]
     ])
+
+def contests_keyboard(page, total_pages, user_id):
+    buttons = []
+    nav_buttons = []
+    
+    if total_pages > 1:
+        if page > 0:
+            nav_buttons.append(InlineKeyboardButton(text="◀️ Назад", callback_data=f"contests_page_{page-1}"))
+        nav_buttons.append(InlineKeyboardButton(text=f"{page+1}/{total_pages}", callback_data="noop"))
+        if page < total_pages - 1:
+            nav_buttons.append(InlineKeyboardButton(text="Вперед ▶️", callback_data=f"contests_page_{page+1}"))
+    
+    buttons.append(nav_buttons)
+    buttons.append([InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_main")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 # === КОМАНДА /START ===
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    # Устанавливаем меню внизу экрана
     commands = [
         BotCommand(command="start", description="🏠 Главное меню"),
         BotCommand(command="my_contests", description="📋 Мои конкурсы"),
@@ -88,7 +103,7 @@ async def start(message: types.Message):
             else:
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="📢 Подписаться", url=f"https://t.me/{channel.replace('@', '')}")],
-                    [InlineKeyboardButton(text="✅ Проверить подписку", callback_data="check_sub_user")]
+                    [InlineKeyboardButton(text="✅ Проверить", callback_data="check_sub_user")]
                 ])
                 await message.answer(
                     f"🔒 Подпишись на канал:\n{channel}",
@@ -114,9 +129,9 @@ async def cmd_my_contests(message: types.Message):
         return
     
     text = "📋 **Все конкурсы:**\n\n"
-    for c in contests[:10]:
+    for i, c in enumerate(contests[:10], 1):
         status = "✅ Выполнен" if c[5] == 1 else "⏳ Активен"
-        text += f"• **{c[3]}**\n  {status} | До: {c[4]}\n  🔗 {c[2]}\n\n"
+        text += f"{i}. **{c[3]}**\n  {status} | До: {c[4]}\n  🔗 {c[2]}\n\n"
     
     if len(contests) > 10:
         text += f"… и ещё {len(contests) - 10}"
@@ -138,7 +153,7 @@ async def cmd_active(message: types.Message):
         return
     
     text = "⏳ **Активные конкурсы:**\n\n"
-    for c in contests:
+    for i, c in enumerate(contests[:10], 1):
         end_time = datetime.strptime(c[4], "%Y-%m-%d %H:%M")
         diff = end_time - datetime.now()
         
@@ -154,10 +169,13 @@ async def cmd_active(message: types.Message):
         minutes = (diff.seconds % 3600) // 60
         time_str = f"{days}д {hours}ч {minutes}м" if days > 0 else f"{hours}ч {minutes}м"
         
-        text += f"{emoji} **{c[3]}**\n"
+        text += f"{emoji} {i}. **{c[3]}**\n"
         text += f"   ⏳ Осталось: {time_str}\n"
         text += f"   📅 До: {end_time.strftime('%d.%m.%Y %H:%M')}\n"
         text += f"   🔗 {c[2]}\n\n"
+    
+    if len(contests) > 10:
+        text += f"… и ещё {len(contests) - 10}"
     
     await message.answer(text, reply_markup=main_keyboard(user_id), parse_mode="Markdown")
 
@@ -169,9 +187,12 @@ async def cmd_stats(message: types.Message):
     active = len([c for c in contests if c[4] == 'active' and datetime.strptime(c[4], "%Y-%m-%d %H:%M") > datetime.now()])
     participated = len([c for c in contests if c[5] == 1])
     
-    text = f"📊 **Статистика:**\n\n📝 Всего: {total}\n⏳ Активных: {active}\n✅ Участвовал: {participated}"
+    text = f"📊 **Статистика:**\n\n"
+    text += f"📝 Всего: {total}\n"
+    text += f"⏳ Активных: {active}\n"
+    text += f"✅ Участвовал: {participated}\n"
     if total > 0:
-        text += f"\n📈 Процент: {round(participated/total*100, 1)}%"
+        text += f"📈 Процент: {round(participated/total*100, 1)}%"
     
     await message.answer(text, reply_markup=main_keyboard(user_id), parse_mode="Markdown")
 
@@ -190,8 +211,8 @@ async def cmd_help(message: types.Message):
         "➕ **Добавить конкурс** — добавить новый конкурс\n"
         "⏳ **Активные** — только активные конкурсы\n"
         "📊 **Статистика** — твоя статистика\n"
-        "⚙️ **Админ-панель** — управление ботом (только для админа)\n\n"
-        "📌 Все конкурсы автоматически проверяются на дубликаты.",
+        "⚙️ **Админ-панель** — управление ботом\n\n"
+        "📌 Все конкурсы проверяются на дубликаты.",
         parse_mode="Markdown",
         reply_markup=main_keyboard(message.from_user.id)
     )
@@ -293,7 +314,7 @@ async def add_contest_title(message: types.Message, state: FSMContext):
         await state.update_data(re_add_id=None)
     
     await state.update_data(title=message.text.strip())
-    await message.answer("⏳ Введи время (2026-08-20 18:00 или 72):")
+    await message.answer("⏳ Введи время (2026-08-25 18:00 или 72):")
     await state.set_state(AddContest.waiting_for_time)
 
 @dp.message(AddContest.waiting_for_time)
@@ -315,7 +336,7 @@ async def add_contest_time(message: types.Message, state: FSMContext):
                 return
             end_time_str = time_input
         except:
-            await message.answer("❌ Неверный формат! Используй: 2026-08-20 18:00 или 72")
+            await message.answer("❌ Неверный формат! Используй: 2026-08-25 18:00 или 72")
             return
     
     add_contest(user_id, data['link'], data['title'], end_time_str)
@@ -334,7 +355,7 @@ async def show_active(callback: types.CallbackQuery):
         return
     
     text = "⏳ **Активные конкурсы:**\n\n"
-    for c in contests:
+    for i, c in enumerate(contests[:10], 1):
         end_time = datetime.strptime(c[4], "%Y-%m-%d %H:%M")
         diff = end_time - datetime.now()
         
@@ -350,12 +371,17 @@ async def show_active(callback: types.CallbackQuery):
         minutes = (diff.seconds % 3600) // 60
         time_str = f"{days}д {hours}ч {minutes}м" if days > 0 else f"{hours}ч {minutes}м"
         
-        text += f"{emoji} **{c[3]}**\n"
+        text += f"{emoji} {i}. **{c[3]}**\n"
         text += f"   ⏳ Осталось: {time_str}\n"
         text += f"   📅 До: {end_time.strftime('%d.%m.%Y %H:%M')}\n"
         text += f"   🔗 {c[2]}\n\n"
     
+    if len(contests) > 10:
+        text += f"… и ещё {len(contests) - 10}\n"
+        text += "\n📌 Нажми кнопку ниже для просмотра всех"
+    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📋 Все конкурсы", callback_data="my_contests")],
         [InlineKeyboardButton(text="🔄 Обновить", callback_data="active_contests")],
         [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_main")]
     ])
@@ -375,14 +401,16 @@ async def show_all(callback: types.CallbackQuery):
         return
     
     text = "📋 **Все конкурсы:**\n\n"
-    for c in contests[:10]:
+    for i, c in enumerate(contests[:10], 1):
         status = "✅ Выполнен" if c[5] == 1 else "⏳ Активен"
-        text += f"• **{c[3]}**\n  {status} | До: {c[4]}\n  🔗 {c[2]}\n\n"
+        text += f"{i}. **{c[3]}**\n  {status} | До: {c[4]}\n  🔗 {c[2]}\n\n"
     
     if len(contests) > 10:
-        text += f"… и ещё {len(contests) - 10}"
+        text += f"… и ещё {len(contests) - 10}\n"
+        text += "\n📌 Нажми кнопку ниже для просмотра активных"
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⏳ Активные конкурсы", callback_data="active_contests")],
         [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_main")]
     ])
     
@@ -398,9 +426,12 @@ async def show_stats(callback: types.CallbackQuery):
     active = len([c for c in contests if c[4] == 'active' and datetime.strptime(c[4], "%Y-%m-%d %H:%M") > datetime.now()])
     participated = len([c for c in contests if c[5] == 1])
     
-    text = f"📊 **Статистика:**\n\n📝 Всего: {total}\n⏳ Активных: {active}\n✅ Участвовал: {participated}"
+    text = f"📊 **Статистика:**\n\n"
+    text += f"📝 Всего конкурсов: {total}\n"
+    text += f"⏳ Активных: {active}\n"
+    text += f"✅ Участвовал: {participated}\n"
     if total > 0:
-        text += f"\n📈 Процент: {round(participated/total*100, 1)}%"
+        text += f"📈 Процент участия: {round(participated/total*100, 1)}%"
     
     await callback.message.edit_text(text, reply_markup=main_keyboard(user_id), parse_mode="Markdown")
     await callback.answer()
@@ -421,6 +452,20 @@ async def delete_contest_cmd(callback: types.CallbackQuery):
     await callback.answer("🗑️ Удалено!", show_alert=True)
     await callback.message.edit_text("🗑️ Удалено.", reply_markup=main_keyboard(callback.from_user.id))
 
+# === ОЧИСТКА СТАРЫХ КОНКУРСОВ ===
+@dp.callback_query(lambda c: c.data == "clean_old")
+async def clean_old_contests(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("⛔ Доступ запрещён!", show_alert=True)
+        return
+    
+    deleted = clean_expired_contests()
+    await callback.message.edit_text(
+        f"🗑️ Удалено старых конкурсов: {deleted}",
+        reply_markup=admin_keyboard()
+    )
+    await callback.answer(f"✅ Удалено {deleted} конкурсов!", show_alert=True)
+
 # === АДМИН-ПАНЕЛЬ ===
 @dp.callback_query(lambda c: c.data == "admin_panel")
 async def admin_panel(callback: types.CallbackQuery):
@@ -435,52 +480,4 @@ async def manage_channel(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
         await callback.answer("⛔ Доступ запрещён!", show_alert=True)
         return
-    await callback.message.edit_text("📢 **Управление каналом**", reply_markup=channel_keyboard(), parse_mode="Markdown")
-    await callback.answer()
-
-@dp.callback_query(lambda c: c.data == "change_channel")
-async def change_channel(callback: types.CallbackQuery, state: FSMContext):
-    if callback.from_user.id != ADMIN_ID:
-        await callback.answer("⛔ Доступ запрещён!", show_alert=True)
-        return
-    await callback.message.answer("📢 Отправь новый канал (например, @durov):")
-    await state.set_state(AdminStates.waiting_for_channel)
-    await callback.answer()
-
-@dp.message(AdminStates.waiting_for_channel)
-async def save_channel(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID:
-        return
-    channel = message.text.strip()
-    if 't.me/' in channel:
-        channel = '@' + channel.split('t.me/')[-1]
-    try:
-        await bot.get_chat(channel)
-    except:
-        await message.answer("❌ Канал не найден!")
-        return
-    set_required_channel(channel)
-    await message.answer(f"✅ Канал изменён на {channel}")
-    await state.clear()
-    await message.answer("⚙️ Админ-панель:", reply_markup=admin_keyboard())
-
-# === РАССЫЛКА ===
-@dp.callback_query(lambda c: c.data == "newsletter")
-async def start_newsletter(callback: types.CallbackQuery, state: FSMContext):
-    if callback.from_user.id != ADMIN_ID:
-        await callback.answer("⛔ Доступ запрещён!", show_alert=True)
-        return
-    await callback.message.answer("📨 Напиши текст для рассылки:")
-    await state.set_state(AdminStates.waiting_for_newsletter)
-    await callback.answer()
-
-@dp.message(AdminStates.waiting_for_newsletter)
-async def send_newsletter(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID:
-        return
-    users = get_all_users()
-    if not users:
-        await message.answer("❌ Нет пользователей.")
-        await state.clear()
-        return
-    await message.answer(f"📨 Начинаю рассылк
+    await callback.message.edit_text("📢 **Управление каналом**", reply_markup=channel_keyboard(),
