@@ -60,21 +60,6 @@ def channel_keyboard():
         [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_panel")]
     ])
 
-def contests_keyboard(page, total_pages, user_id):
-    buttons = []
-    nav_buttons = []
-    
-    if total_pages > 1:
-        if page > 0:
-            nav_buttons.append(InlineKeyboardButton(text="◀️ Назад", callback_data=f"contests_page_{page-1}"))
-        nav_buttons.append(InlineKeyboardButton(text=f"{page+1}/{total_pages}", callback_data="noop"))
-        if page < total_pages - 1:
-            nav_buttons.append(InlineKeyboardButton(text="Вперед ▶️", callback_data=f"contests_page_{page+1}"))
-    
-    buttons.append(nav_buttons)
-    buttons.append([InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_main")])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
-
 # === КОМАНДА /START ===
 @dp.message(Command("start"))
 async def start(message: types.Message):
@@ -207,13 +192,12 @@ async def cmd_admin(message: types.Message):
 async def cmd_help(message: types.Message):
     await message.answer(
         "❓ **Помощь**\n\n"
-        "📋 **Мои конкурсы** — список всех конкурсов\n"
-        "➕ **Добавить конкурс** — добавить новый конкурс\n"
-        "⏳ **Активные** — только активные конкурсы\n"
-        "📊 **Статистика** — твоя статистика\n"
-        "⚙️ **Админ-панель** — управление ботом\n\n"
-        "📌 Все конкурсы проверяются на дубликаты.",
-        parse_mode="Markdown",
+        "📋 Мои конкурсы - список всех конкурсов\n"
+        "➕ Добавить конкурс - добавить новый конкурс\n"
+        "⏳ Активные - только активные конкурсы\n"
+        "📊 Статистика - твоя статистика\n"
+        "⚙️ Админ-панель - управление ботом\n\n"
+        "Все конкурсы проверяются на дубликаты.",
         reply_markup=main_keyboard(message.from_user.id)
     )
 
@@ -485,4 +469,24 @@ async def manage_channel(callback: types.CallbackQuery):
         await callback.answer("⛔ Доступ запрещён!", show_alert=True)
         return
     await callback.message.edit_text(
-        "📢 **Управление канал
+        "📢 **Управление каналом**",
+        reply_markup=channel_keyboard(),
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+@dp.callback_query(lambda c: c.data == "change_channel")
+async def change_channel(callback: types.CallbackQuery, state: FSMContext):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("⛔ Доступ запрещён!", show_alert=True)
+        return
+    await callback.message.answer("📢 Отправь новый канал (например, @durov):")
+    await state.set_state(AdminStates.waiting_for_channel)
+    await callback.answer()
+
+@dp.message(AdminStates.waiting_for_channel)
+async def save_channel(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+    channel = message.text.strip()
+    
